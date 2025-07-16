@@ -18,6 +18,10 @@ from dotenv import load_dotenv
 import pathlib
 import uvicorn
 
+
+# from db import init_db
+# init_db()
+
 # ===============================
 # 🔷 Load environment variables
 # ===============================
@@ -68,6 +72,9 @@ tokenizer = AutoTokenizer.from_pretrained("huggyllama/llama-7b", legacy=False)
 
 class QueryRequest(BaseModel):
     query: str
+  
+
+
 @app.get("/")
 def read():
     return "it runs"
@@ -81,7 +88,6 @@ def read():
 
 # if __name__ == "__main__":
 #     uvicorn.run(app, host="localhost", port=8000)
-
 
 @app.post("/api/ask")
 async def ask_question(req: QueryRequest):
