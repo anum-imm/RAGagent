@@ -19,11 +19,11 @@ class ChatSession(Base):
     __tablename__ = "sessions"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    title = Column(String, nullable=True)  # NEW
     started_at = Column(DateTime, default=datetime.datetime.utcnow)
     ended_at = Column(DateTime, nullable=True)
-    total_tokens = Column(Integer, default=0)  # ✅ NEW COLUMN
+    total_tokens = Column(Integer, default=0)
 
-    # Relationship to conversations
     conversations = relationship("Conversation", back_populates="session")
 
 # 🔷 Conversation table: one per message-response pair
