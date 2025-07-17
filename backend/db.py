@@ -1,11 +1,13 @@
-from sqlalchemy import create_engine, Column, Integer, String, DateTime, ForeignKey
+from sqlalchemy import (
+    create_engine, Column, Integer, String, DateTime, ForeignKey
+)
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 import datetime
 import uuid
 
 # DB connection string: sqlite
-engine = create_engine("sqlite:///chatbot.db")
+engine = create_engine("sqlite:///RAGagent.db")
 
 # session maker
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -19,6 +21,7 @@ class ChatSession(Base):
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     started_at = Column(DateTime, default=datetime.datetime.utcnow)
     ended_at = Column(DateTime, nullable=True)
+    total_tokens = Column(Integer, default=0)  # ✅ NEW COLUMN
 
     # Relationship to conversations
     conversations = relationship("Conversation", back_populates="session")

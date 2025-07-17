@@ -19,8 +19,8 @@ import pathlib
 import uvicorn
 
 
-# from db import init_db
-# init_db()
+from db import init_db
+init_db()
 
 # ===============================
 # 🔷 Load environment variables
