@@ -94,7 +94,7 @@ async def ask_question(req: QueryRequest):
             db.commit()
 
         result = qa_chain.invoke({"query": req.query})["result"]
-
+        
         # calculate tokens for this turn
         query_tokens = len(tokenizer.encode(req.query))
         response_tokens = len(tokenizer.encode(result))
