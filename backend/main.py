@@ -5,9 +5,7 @@ from dotenv import load_dotenv
 from uuid import uuid4
 import os
 
-from langgraph.graph import StateGraph, START, MessagesState
 from langgraph.checkpoint.memory import MemorySaver
-from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 from langchain_community.vectorstores import FAISS
 from langchain_huggingface import HuggingFaceEmbeddings
@@ -118,15 +116,14 @@ async def ask_question(req: QueryRequest):
         print(f"    🔷 Query tokens:    {query_tokens}")
         print(f"    🔷 Response tokens: {response_tokens}")
         print(f"    🔷 TOTAL tokens:    {total_tokens}\n")
-
-        return {
-            "answer": result or "🤷 Sorry, no answer found.",
-            "session_id": session_id
-        }
-
+       # print(f"Session ID: {session_id}")
+  
     finally:
         db.close()
-
-
+        print(result)
+        return {
+            "answer": result,
+            "session_id": session_id
+        }
 if __name__ == "__main__":
     uvicorn.run(app, host="localhost", port=8000)
