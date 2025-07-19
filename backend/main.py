@@ -1,29 +1,25 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
-from fastapi.staticfiles import StaticFiles
-from pathlib import Path
+from dotenv import load_dotenv
+from uuid import uuid4
+import os
 
-from typing import Union
-
-from langchain_huggingface import HuggingFaceEmbeddings
+from langgraph.graph import StateGraph, START, MessagesState
+from langgraph.checkpoint.memory import MemorySaver
+from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 from langchain_community.vectorstores import FAISS
+from langchain_huggingface import HuggingFaceEmbeddings
 from langchain.chains import RetrievalQA
 from transformers import AutoTokenizer
 
-import os
-from dotenv import load_dotenv
-import pathlib
+from db import SessionLocal, ChatSession, Conversation  
+
 import uvicorn
-
-
-from db import init_db
-init_db()
-
+memory = MemorySaver()
 # ===============================
-# 🔷 Load environment variables
+# 🔷 Load environment
 # ===============================
 load_dotenv()
 groq_api_key = os.getenv("GROQ_API_KEY")
@@ -56,67 +52,80 @@ llm = ChatOpenAI(
 qa_chain = RetrievalQA.from_chain_type(
     llm=llm,
     retriever=retriever,
-    chain_type="stuff"
+    chain_type="stuff",
+   # memory=memory
 )
 
-app = FastAPI()
+tokenizer = AutoTokenizer.from_pretrained("huggyllama/llama-7b", legacy=False)
 
+
+
+
+# app = qa_chain.compile(checkpointer=memory)
+
+# ===============================
+# 🔷 FastAPI
+# ===============================
+app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-tokenizer = AutoTokenizer.from_pretrained("huggyllama/llama-7b", legacy=False)
 
 class QueryRequest(BaseModel):
     query: str
+    session_id: str = None
+
+
 @app.get("/")
 def read():
     return "it runs"
-
-# @app.post("/api/ask")
-# async def  ask_question(req: QueryRequest):
-#     """Answer user question using QA chain"""
-#     result = qa_chain.invoke({"query": req.query})["result"]
-#     return {"answer": result}
-
-
-# if __name__ == "__main__":
-#     uvicorn.run(app, host="localhost", port=8000)
-
-
 @app.post("/api/ask")
 async def ask_question(req: QueryRequest):
-    """Answer user question using QA chain, print token usage, return only result"""
+    session_id = req.session_id or str(uuid4())
 
-    # 🔷 Count tokens in query
-    query_ids = tokenizer.encode(req.query)
-    query_token_count = len(query_ids)
+    db = SessionLocal()
+    try:
+        chat_session = db.query(ChatSession).filter_by(id=session_id).first()
+        if not chat_session:
+            chat_session = ChatSession(id=session_id, title="untitled")
+            db.add(chat_session)
+            db.commit()
 
-    # 🔷 Retrieve context
-    docs = retriever.get_relevant_documents(req.query)
-    context_text = "\n\n".join(doc.page_content for doc in docs)
-    context_token_count = len(tokenizer.encode(context_text))
+        result = qa_chain.invoke({"query": req.query})["result"]
 
-    # 🔷 Run QA chain
-    result = qa_chain.invoke({"query": req.query})["result"]
+        # calculate tokens for this turn
+        query_tokens = len(tokenizer.encode(req.query))
+        response_tokens = len(tokenizer.encode(result))
+        total_tokens = query_tokens + response_tokens
 
-    # 🔷 Count tokens in response
-    response_token_count = len(tokenizer.encode(result))
+        # save in conversation table
+        convo = Conversation(
+            session_id=session_id,
+            user_message=req.query,
+            bot_response=result,
+            tokens_used=total_tokens
+        )
+        db.add(convo)
 
-    total_tokens = query_token_count + context_token_count + response_token_count
+        chat_session.total_tokens += total_tokens
+        db.commit()
 
-    # 🔷 Print to terminal
-    print(f"\n📊 Token Usage for Query: \"{req.query}\"")
-    print(f"    🔷 Query tokens:    {query_token_count}")
-    print(f"    🔷 Query Tokens: {tokenizer.convert_ids_to_tokens(query_ids)}")
-    print(f"    🔷 Context tokens:  {context_token_count}")
-    print(f"    🔷 Response tokens: {response_token_count}")
-    print(f"    🔷 TOTAL tokens:    {total_tokens}\n")
+        print(f"\n📊 Token Usage for Query: \"{req.query}\"")
+        print(f"    🔷 Query tokens:    {query_tokens}")
+        print(f"    🔷 Response tokens: {response_tokens}")
+        print(f"    🔷 TOTAL tokens:    {total_tokens}\n")
 
-    return {"answer": result}
+        return {
+            "answer": result or "🤷 Sorry, no answer found.",
+            "session_id": session_id
+        }
+
+    finally:
+        db.close()
 
 
 if __name__ == "__main__":
