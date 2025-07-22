@@ -209,7 +209,6 @@ document.addEventListener("DOMContentLoaded", () => {
       });
 
       const data = await response.json();
-      console.log("✅ API Response:", data);
       appendMessage(data.answer || "🤷 Sorry, no answer found.", "bot");
       sessionId=data.session_id;
     } catch (err) {
@@ -220,15 +219,25 @@ document.addEventListener("DOMContentLoaded", () => {
       input.focus();
     }
   }
+sendBtn.addEventListener("click", (e) => {
+  e.preventDefault();  
+  const question = input.value;
+  if (question.trim()) {
+    input.value = "";
+    askQuestion(question);
+  }
+});
 
-  sendBtn.addEventListener("click", (e) => {
-    e.preventDefault();  // Just in case
+input.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
     const question = input.value;
     if (question.trim()) {
       input.value = "";
       askQuestion(question);
     }
-  });
+  }
+});
 
   input.focus();
 });
